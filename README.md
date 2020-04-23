@@ -11,7 +11,7 @@ Caso estas não sejam definidas, é necessário passá-las no ato da chamada das
 
 Para executar a aplicação, basta fazer chamada do arquivo `main.py`.
 
-O processamento será adicionado à uma pasta, que será criada se não existir, chamada de **processing**, precedida da data e hora do processamento.
+O processamento será adicionado à uma pasta, que será criada se não existir, chamada de **processing**, sucedida da data e hora do processamento.
 
 
 ### Instalação
