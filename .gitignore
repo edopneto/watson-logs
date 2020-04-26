@@ -43,3 +43,4 @@ uitests/out/**
 env
 processing/**
 docs/**
+credentials.txt

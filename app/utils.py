@@ -4,15 +4,15 @@ from pprint     import pprint
 from uuid       import uuid4
 from pathlib    import Path
 from datetime   import datetime
-from ibm_watson import AssistantV1
-from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+from ibm_watson import AssistantV2, AssistantV1
+from ibm_cloud_sdk_core.authenticators import IAMAuthenticator, BasicAuthenticator
 
 
 
 def get_assistant(
     apikey:str=None,
     version:str='2020-04-01',
-    service_locale:str='https://api.eu-gb.assistant.watson.cloud.ibm.com',
+    service_locale:str='https://api.eu-gb.assistant.watson.cloud.ibm.com/instances/0ba07a41-559b-4434-b0c8-d1cfffdd4ba5',
     authenticator=IAMAuthenticator,
     assistant_class=AssistantV1,
     *args,
@@ -20,10 +20,12 @@ def get_assistant(
     
     if not apikey: apikey = os.environ.get('WATSON_IAM_APIKEY', None)
     if not apikey: raise RuntimeError("Verifique o parâmetro 'apikey'.")
-    
+        
+    authenticator = authenticator(apikey)
+
     assistant = assistant_class(
         version=version,
-        authenticator=authenticator(apikey)
+        authenticator=authenticator,
     )
 
     assistant.set_service_url(service_locale)
@@ -32,7 +34,7 @@ def get_assistant(
 
 
 def get_logs(
-    assistant:AssistantV1,
+    assistant,
     workspace_id:str=None,
     cursor:str=None,
     processing_result=[],
@@ -47,14 +49,22 @@ def get_logs(
     
     print("\n\nIteração {}".format(iteration))
     
-    response = assistant.list_logs(
-        workspace_id=workspace_id,
-        cursor=cursor
-        ).get_result()
+    if cursor:
+        response = assistant.list_logs(
+            workspace_id=workspace_id,
+            cursor=cursor
+            ).get_result()
     
+    else:
+        response = assistant.list_logs(workspace_id=workspace_id).get_result()
+
     if not 'logs' in response or not response['logs']:
+        input("...")
         return processing_result
-     
+    
+    response['logs'] = list(filter(lambda element: element['workspace_id'] == workspace_id, \
+        response['logs'] ))
+    
     print("Adicionando {} interações!".format(len(response['logs'])))
 
     processing_result.extend(response['logs'])
@@ -100,6 +110,7 @@ def get_diff_conversations(
 def get_logs_by_conversations(
     data,
     saving:bool=True,
+    batch_size=50,
     *args,
     **kwargs):
     
@@ -108,16 +119,35 @@ def get_logs_by_conversations(
     conversations = {}
 
     for element in data:
-        try:
-            id = element['response']['context']['conversation_id'] 
-            conversations[id] = element
-        except Exception as err:
-            continue
-    
+        id = element['response']['context']['conversation_id'] 
+
+        if not id in conversations: conversations[id] = []
+
+        conversations[id].append(element)
+
     if saving:
-        return save_data(conversations, 'log_by_conversation')
+        tag = datetime.now()
+        # Quebrando em vários arquivos:
+        indexes = list(conversations.keys())
+
+        while len(indexes):
+            until = batch_size if batch_size < len(indexes) else batch_size - len(indexes)
+            
+            save_data(
+                    data={key: conversations[key] for key in indexes[:until]},
+                    name=str(uuid4()),
+                    tag=tag
+                    )
+            indexes = indexes[until:]
+
+        return True
     
     return conversations
+
+
+def filter_keys_log(element:dict, *args, **kwargs):
+    #element['request'] = {'input':}
+    pass
 
 
 def save_data(
